@@ -1,11 +1,15 @@
 #include QMK_KEYBOARD_H
+#include "quantum.h"
 
-// Tap Dance
-enum tap_dance_ids {
-    TD_HELLO,
+enum {
+  TD_HELLO,
 };
 
-void dance_hello(tap_dance_state_t *state, void *user_data) {
+enum custom_keycodes {
+    KC_ACLICK = SAFE_RANGE,
+};
+
+void dance_egg(tap_dance_state_t *state, void *user_data) {
     if (state->count >= 2) {
         SEND_STRING("Hello World!");
         reset_tap_dance(state);
@@ -13,16 +17,12 @@ void dance_hello(tap_dance_state_t *state, void *user_data) {
 }
 
 tap_dance_action_t tap_dance_actions[] = {
-    [TD_HELLO] = ACTION_TAP_DANCE_FN(dance_hello),
+    [TD_HELLO] = ACTION_TAP_DANCE_FN(dance_egg),
 };
 
-// Custom Keycodes
-enum custom_keycodes {
-    KC_ACLICK = SAFE_RANGE,
-};
-
-// Leader Key
-void leader_start_user(void) {}
+void leader_start_user(void) {
+    // Do something when the leader key is pressed
+}
 
 void leader_end_user(void) {
     if (leader_sequence_one_key(KC_C)) {
@@ -32,8 +32,7 @@ void leader_end_user(void) {
     }
 }
 
-// Layers
-enum layer_names {
+enum layers {
    _QWERTY,
    _SYMB,
    _NAV,
@@ -41,27 +40,32 @@ enum layer_names {
    _ADJUST
 };
 
-// Layer Shortcuts
-#define SYM_L       MO(_SYMB)
-#define KC_ALAS     LALT_T(KC_PAST)
-#define KC_NAGR     LT(_NAV, KC_GRV)
-#define KC_NAMI     LT(_NAV, KC_MINS)
-#define KC_NENT     LT(_NAV, KC_ENT)
-#define KC_NBSPC    LT(_NAV_MOUSE, KC_BSPC)
-#define KC_SYHO     LT(_SYMB, KC_HOME)
-#define KC_SYPD     LT(_SYMB, KC_PGDN)
-#define KC_ADPU     LT(_ADJUST, KC_PGUP)
-#define KC_ADEN     LT(_ADJUST, KC_END)
-#define MUTE_MIC    KC_MEDIA_PLAY_PAUSE
+// Shortcut to make keymap more readable
+#define SYM_L   MO(_SYMB)
 
-// Debug log on startup
+#define KC_ALAS LALT_T(KC_PAST)
+
+#define KC_NAGR LT(_NAV, KC_GRV)
+#define KC_NAMI LT(_NAV, KC_MINS)
+
+#define KC_NENT LT(_NAV, KC_ENT)
+#define KC_NBSPC LT(_NAV_MOUSE, KC_BSPC)
+
+#define KC_SYHO LT(_SYMB, KC_HOME)
+#define KC_SYPD LT(_SYMB, KC_PGDN)
+
+#define KC_ADPU LT(_ADJUST, KC_PGUP)
+#define KC_ADEN LT(_ADJUST, KC_END)
+
+
+#define MUTE_MIC KC_MEDIA_PLAY_PAUSE
+
 void keyboard_post_init_user(void) {
-    debug_enable = true;
-    debug_matrix = true;
-    debug_keyboard = true;
+  debug_enable=true;
+  debug_matrix=true;
+  debug_keyboard=true;
 }
 
-// Scroll Lock handling
 #define SCROLL_LOCK_MASK (1 << 2)
 
 bool is_scroll_lock_active(void) {
@@ -71,17 +75,19 @@ bool is_scroll_lock_active(void) {
 bool symb_layer_active = false;
 
 layer_state_t layer_state_set_user(layer_state_t state) {
-    bool is_symb = get_highest_layer(state) == _SYMB;
+    bool is_symb_layer = (get_highest_layer(state) == _SYMB);
 
-    if (is_symb != symb_layer_active) {
-        tap_code(KC_SCROLL_LOCK);
-        symb_layer_active = is_symb;
+    if (is_symb_layer && !is_scroll_lock_active()) {
+      tap_code(KC_SCROLL_LOCK);
+    } else if (!is_symb_layer && is_scroll_lock_active()){
+      tap_code(KC_SCROLL_LOCK);
     }
+
+    symb_layer_active = is_symb_layer;
 
     return state;
 }
 
-// Autoclicker logic
 bool autoclick_active = false;
 uint16_t autoclick_timer = 0;
 
@@ -90,7 +96,9 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
         case KC_ACLICK:
             if (record->event.pressed) {
                 autoclick_active = !autoclick_active;
-                autoclick_timer = timer_read();
+                if (autoclick_active) {
+                    autoclick_timer = timer_read();
+                }
             }
             return false;
     }
@@ -98,14 +106,13 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
 }
 
 void matrix_scan_user(void) {
-    if (is_scroll_lock_active() != symb_layer_active) {
-        if (is_scroll_lock_active()) {
-            layer_on(_SYMB);
-        } else {
-            layer_off(_SYMB);
-        }
-    }
+    if (is_scroll_lock_active() && !symb_layer_active) {
+        layer_on(_SYMB);
 
+    }
+    else if (!is_scroll_lock_active() && symb_layer_active) {
+        layer_off(_SYMB);
+    }
     if (autoclick_active && timer_elapsed(autoclick_timer) > 25) {
         tap_code(KC_MS_BTN1);
         autoclick_timer = timer_read();
